@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.boot.runApplication
 import org.springframework.context.annotation.Bean
+import org.springframework.context.event.EventListener
 import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory
 import org.springframework.data.redis.core.ReactiveRedisTemplate
 import org.springframework.data.redis.serializer.RedisSerializationContext
@@ -57,18 +58,17 @@ class FileReaderKotlinApplication {
 		return ReactiveRedisTemplate(factory, RedisSerializationContext.string())
 	}
 
+	//Initialize reactiveRedisTemplate
 
-	@Bean
-	fun onApplicationEvent(): (ApplicationReadyEvent, ReactiveRedisTemplate<String, String>) -> Unit {
-		println("### onApplicationEvent")
-		return { event, redisTemplate ->
-			redisTemplate.listenToChannel("channel")
-				.doOnNext { processedMessage -> println("[*] Received Message: $processedMessage") }
-				.doOnNext { sinks().tryEmitNext("Got the file Information, Processing It...") }
-				.doOnNext { processedMessage -> processFile(processedMessage.message) }
-				.subscribeOn(Schedulers.parallel())
-				.subscribe()
-		}
+	@EventListener(ApplicationReadyEvent::class)
+	fun onApplicationEvent(event: ApplicationReadyEvent) {
+		println("Redis Subscription is up and running...")
+		/*reactiveRedisTemplate.listenToChannel("channel")
+			.doOnNext { processedMessage -> println("[*] Received Message: $processedMessage") }
+			.doOnNext { sinks().tryEmitNext("Got the file Information, Processing It...") }
+			.doOnNext { processedMessage -> processFile(processedMessage.message) }
+			.subscribeOn(Schedulers.parallel())
+			.subscribe()*/
 	}
 
 	private fun processFile(filePath: String) {
