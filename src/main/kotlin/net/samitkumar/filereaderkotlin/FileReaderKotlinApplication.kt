@@ -1,11 +1,14 @@
 package net.samitkumar.filereaderkotlin
 
+import lombok.AllArgsConstructor
 import lombok.extern.slf4j.Slf4j
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.boot.runApplication
 import org.springframework.context.annotation.Bean
+import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory
 import org.springframework.data.redis.core.ReactiveRedisTemplate
+import org.springframework.data.redis.serializer.RedisSerializationContext
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.HandlerMapping
 import org.springframework.web.reactive.function.server.RouterFunction
@@ -22,9 +25,8 @@ import java.io.FileReader
 
 @SpringBootApplication
 @Slf4j
-class FileReaderKotlinApplication(
-	private val redisTemplate: ReactiveRedisTemplate<String, String>
-) {
+@AllArgsConstructor
+class FileReaderKotlinApplication {
 
 	@Bean
 	fun sinks(): Sinks.Many<String> = Sinks.many().multicast().onBackpressureBuffer()
@@ -32,11 +34,12 @@ class FileReaderKotlinApplication(
 	@Bean
 	fun routerFunction(): RouterFunction<ServerResponse> {
 		return RouterFunctions.route()
-			.POST("/message/to/channel") { request ->
-				request.bodyToMono(String::class.java)
-					.flatMap { message -> redisTemplate.convertAndSend("channel", message) }
-					.map { mapOf("status" to "SUCCESS", "l" to it) }
-					.flatMap { ServerResponse.ok().bodyValue(it) }
+			.GET("/ping"){
+				ServerResponse.ok().bodyValue(mapOf("message" to "PONG"))
+			}
+			.GET("/details"){ request ->
+				val filename = request.queryParams()["filename"]
+				ServerResponse.ok().bodyValue(mapOf("filename" to filename))
 			}
 			.build()
 	}
@@ -50,8 +53,15 @@ class FileReaderKotlinApplication(
 	}
 
 	@Bean
-	fun onApplicationEvent(): (ApplicationReadyEvent) -> Unit {
-		return {
+	fun reactiveRedisTemplate(factory: ReactiveRedisConnectionFactory): ReactiveRedisTemplate<String, String> {
+		return ReactiveRedisTemplate(factory, RedisSerializationContext.string())
+	}
+
+
+	@Bean
+	fun onApplicationEvent(): (ApplicationReadyEvent, ReactiveRedisTemplate<String, String>) -> Unit {
+		println("### onApplicationEvent")
+		return { event, redisTemplate ->
 			redisTemplate.listenToChannel("channel")
 				.doOnNext { processedMessage -> println("[*] Received Message: $processedMessage") }
 				.doOnNext { sinks().tryEmitNext("Got the file Information, Processing It...") }
