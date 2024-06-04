@@ -24,6 +24,10 @@ import reactor.core.publisher.Sinks
 import reactor.core.scheduler.Schedulers
 import java.io.BufferedReader
 import java.io.FileReader
+import java.io.IOException
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.Paths
 
 @SpringBootApplication
 @Slf4j
@@ -90,22 +94,23 @@ class FileReaderKotlinApplication {
 		)
 	}
 
-	private fun processFile(fileName: String) : FileReaderDetails {
+	fun processFile(fileName: String): FileReaderDetails {
 		var lines = 0
 		var words = 0
 		var letters = 0
+
 		try {
-			BufferedReader(FileReader("$fileLookupPath/$fileName")).use { reader ->
-				var line: String?
-				while (reader.readLine().also { line = it } != null) {
+			Files.lines(Paths.get(fileLookupPath, fileName), StandardCharsets.UTF_8).use { stream ->
+				stream.forEach { line ->
 					lines++
-					words += line!!.split("\\s+").toTypedArray().size
-					letters += line!!.replace("\\s".toRegex(), "").length
+					words += line.split("\\s+".toRegex()).size
+					letters += line.replace("\\s".toRegex(), "").length
 				}
 			}
-		} catch (e: Exception) {
+		} catch (e: IOException) {
 			println("Error reading file: ${e.message}")
 		}
+
 		println("Read $words words, $letters letters, and $lines lines from file $fileName")
 		return FileReaderDetails(lines, words, letters)
 	}
