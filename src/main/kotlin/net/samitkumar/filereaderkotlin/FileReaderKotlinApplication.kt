@@ -1,7 +1,8 @@
 package net.samitkumar.filereaderkotlin
 
-import lombok.AllArgsConstructor
 import lombok.extern.slf4j.Slf4j
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.boot.runApplication
@@ -26,11 +27,17 @@ import java.io.FileReader
 
 @SpringBootApplication
 @Slf4j
-@AllArgsConstructor
 class FileReaderKotlinApplication {
+
+	@Value("\${spring.application.file.lookup.path}")
+	lateinit var fileLookupPath: String
 
 	@Bean
 	fun sinks(): Sinks.Many<String> = Sinks.many().multicast().onBackpressureBuffer()
+
+	@Autowired
+	//autowired reactiveRedisTemplate
+	lateinit var reactiveRedisTemplate: ReactiveRedisTemplate<String, String>
 
 	@Bean
 	fun routerFunction(): RouterFunction<ServerResponse> {
@@ -39,8 +46,9 @@ class FileReaderKotlinApplication {
 				ServerResponse.ok().bodyValue(mapOf("message" to "PONG"))
 			}
 			.GET("/details"){ request ->
-				val filename = request.queryParams()["filename"]
-				ServerResponse.ok().bodyValue(mapOf("filename" to filename))
+				val filename = request.queryParams().getFirst("filename").toString()
+				println("Received request for file: $filename")
+				ServerResponse.ok().bodyValue(processFile(filename))
 			}
 			.build()
 	}
@@ -61,23 +69,33 @@ class FileReaderKotlinApplication {
 	//Initialize reactiveRedisTemplate
 
 	@EventListener(ApplicationReadyEvent::class)
-	fun onApplicationEvent(event: ApplicationReadyEvent) {
+	fun onApplicationEvent() {
 		println("Redis Subscription is up and running...")
-		/*reactiveRedisTemplate.listenToChannel("channel")
+		reactiveRedisTemplate.listenToChannel("channel")
 			.doOnNext { processedMessage -> println("[*] Received Message: $processedMessage") }
 			.doOnNext { sinks().tryEmitNext("Got the file Information, Processing It...") }
-			.doOnNext { processedMessage -> processFile(processedMessage.message) }
+			.doOnNext { processedMessage -> processFileAndEmit(processedMessage.message) }
 			.subscribeOn(Schedulers.parallel())
-			.subscribe()*/
+			.subscribe()
 	}
 
-	private fun processFile(filePath: String) {
+	private fun processFileAndEmit(fileName: String) {
+		val fileReaderDetails = processFile(fileName)
+		sinks().tryEmitNext(
+			mapOf(
+				"lines" to fileReaderDetails.lines,
+				"words" to fileReaderDetails.words,
+				"letters" to fileReaderDetails.letters
+			).toString()
+		)
+	}
+
+	private fun processFile(fileName: String) : FileReaderDetails {
 		var lines = 0
 		var words = 0
 		var letters = 0
-
 		try {
-			BufferedReader(FileReader(filePath)).use { reader ->
+			BufferedReader(FileReader("$fileLookupPath/$fileName")).use { reader ->
 				var line: String?
 				while (reader.readLine().also { line = it } != null) {
 					lines++
@@ -88,17 +106,12 @@ class FileReaderKotlinApplication {
 		} catch (e: Exception) {
 			println("Error reading file: ${e.message}")
 		}
-		println("Read $words words, $letters letters, and $lines lines from file $filePath")
-
-		val x = FileReaderDetails(lines, words, letters)
-		val result = mapOf(
-			"lines" to x.lines,
-			"words" to x.words,
-			"letters" to x.letters
-		).toString()
-		sinks().tryEmitNext(result)
+		println("Read $words words, $letters letters, and $lines lines from file $fileName")
+		return FileReaderDetails(lines, words, letters)
 	}
 }
+
+
 
 data class FileReaderDetails(val lines: Int, val words: Int, val letters: Int)
 
