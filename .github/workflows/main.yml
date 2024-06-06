@@ -1,0 +1,57 @@
+name: Build & Push Image
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+    - uses: actions/checkout@v4
+    - uses: graalvm/setup-graalvm@v1
+      with:
+        version: 'latest'
+        java-version: '21'
+        cache: 'maven'
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        native-image-job-reports: 'true'
+
+    - name: Log in to the Container registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    # - name: Extract metadata (tags, labels) for Docker
+    #   id: meta
+    #   uses: docker/metadata-action@v5
+    #   with:
+    #     images: |
+    #       ghcr.io/${{ github.repository }}
+    #     tags: |
+    #       type=raw,value=${{github.run_id}}
+    #       type=ref,event=branch
+    - name: Docker build
+      run: |
+        ./mvnw -B spring-boot:build-image \
+              -DskipTests \
+              -Dspring-boot.build-image.imageName=ghcr.io/${{ github.repository }}:${{github.run_id}}
+        docker tag ghcr.io/${{ github.repository }}:${{github.run_id}} ghcr.io/${{ github.repository }}:main
+        docker images
+    # - name: Build and push Docker images
+    #   id: push
+    #   uses: docker/build-push-action@v5
+    #   with:
+    #     context: .
+    #     push: true
+    #     tags: ${{ steps.meta.outputs.tags }}
+    #     labels: ${{ steps.meta.outputs.labels }}
+    - name: docker push
+      run: docker push -a ghcr.io/${{ github.repository }}
