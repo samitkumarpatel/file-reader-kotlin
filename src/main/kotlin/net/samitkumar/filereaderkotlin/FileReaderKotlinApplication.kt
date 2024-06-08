@@ -1,5 +1,6 @@
 package net.samitkumar.filereaderkotlin
 
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import lombok.extern.slf4j.Slf4j
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Value
@@ -85,13 +86,20 @@ class FileReaderKotlinApplication {
 
 	private fun processFileAndEmit(fileName: String) {
 		val fileReaderDetails = processFile(fileName)
-		sinks().tryEmitNext(
-			mapOf(
-				"lines" to fileReaderDetails.lines,
-				"words" to fileReaderDetails.words,
-				"letters" to fileReaderDetails.letters
-			).toString()
+
+		// Create a map of the details
+		val detailsMap = mapOf(
+			"lines" to fileReaderDetails.lines,
+			"words" to fileReaderDetails.words,
+			"letters" to fileReaderDetails.letters
 		)
+
+		// Convert the map to a JSON string
+		val objectMapper = jacksonObjectMapper()
+		val jsonString = objectMapper.writeValueAsString(detailsMap)
+
+		// Emit the JSON string
+		sinks().tryEmitNext(jsonString)
 	}
 
 	fun processFile(fileName: String): FileReaderDetails {
