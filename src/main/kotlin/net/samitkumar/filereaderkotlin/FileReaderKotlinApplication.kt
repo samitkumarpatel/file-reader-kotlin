@@ -23,8 +23,6 @@ import org.springframework.web.reactive.socket.WebSocketSession
 import reactor.core.publisher.Mono
 import reactor.core.publisher.Sinks
 import reactor.core.scheduler.Schedulers
-import java.io.BufferedReader
-import java.io.FileReader
 import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -107,7 +105,7 @@ class FileReaderKotlinApplication {
 		var letters = 0
 
 		try {
-			Files.lines(Paths.get(fileLookupPath, fileName), StandardCharsets.UTF_8).use { stream ->
+			Files.lines(Paths.get(fileLookupPath, fileName), StandardCharsets.ISO_8859_1).use { stream ->
 				stream.forEach { line ->
 					lines++
 					words += line.split("\\s+".toRegex()).size
