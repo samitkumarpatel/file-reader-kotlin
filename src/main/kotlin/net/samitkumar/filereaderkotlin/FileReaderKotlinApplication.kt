@@ -78,9 +78,8 @@ class FileReaderKotlinApplication {
 		println("Redis Subscription is up and running...")
 		reactiveRedisTemplate.listenToChannel("channel")
 			.doOnNext { processedMessage -> println("[*] Received Message: $processedMessage") }
-			.doOnNext { sinks().tryEmitNext("Got the file Information, Processing It...") }
+			.doOnNext { Mono.fromRunnable<Void> { sinks().tryEmitNext("Got the file Information, Processing It...") }.subscribeOn(Schedulers.parallel()).subscribe() }
 			.doOnNext { processedMessage -> processFileAndEmit(processedMessage.message) }
-			.subscribeOn(Schedulers.parallel())
 			.subscribe()
 	}
 
@@ -116,6 +115,7 @@ class FileReaderKotlinApplication {
 				}
 			}
 		} catch (e: IOException) {
+			sinks().tryEmitNext("Error reading file")
 			println("Error reading file: ${e.message}")
 		}
 
